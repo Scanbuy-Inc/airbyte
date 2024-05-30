@@ -1,0 +1,108 @@
+{
+  "documentationUrl": "https://docs.airbyte.com/integrations/destinations/event-bridge",
+  "supported_destination_sync_modes": [
+    "append"
+  ],
+  "supportsIncremental": false,
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Destination Event Bridge",
+    "type": "object",
+    "required": [
+      "credentials"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "credentials": {
+        "type": "object",
+        "title": "IAM User",
+        "order": 1,
+        "required": [
+          "aws_access_key_id",
+          "aws_secret_access_key"
+        ],
+        "properties": {
+          "aws_access_key_id": {
+            "title": "Access Key Id",
+            "type": "string",
+            "description": "AWS User Access Key Id",
+            "airbyte_secret": true
+          },
+          "aws_secret_access_key": {
+            "title": "Secret Access Key",
+            "type": "string",
+            "description": "Secret Access Key",
+            "airbyte_secret": true
+          }
+        }
+      },
+      "region": {
+        "title": "Event Bus Region",
+        "type": "string",
+        "default": "",
+        "description": "The region of the Event Bridge. See <a href=\"https://www.aws-services.info/eventbridge.html\">here</a> for all region codes. Default: 'us-east-2'",
+        "enum": [
+          "",
+          "af-south-1",
+          "ap-east-1",
+          "ap-northeast-1",
+          "ap-northeast-2",
+          "ap-northeast-3",
+          "ap-south-1",
+          "ap-south-2",
+          "ap-southeast-1",
+          "ap-southeast-2",
+          "ap-southeast-3",
+          "ap-southeast-4",
+          "ca-central-1",
+          "ca-west-1",
+          "cn-north-1",
+          "cn-northwest-1",
+          "eu-central-1",
+          "eu-central-2",
+          "eu-north-1",
+          "eu-south-1",
+          "eu-south-2",
+          "eu-west-1",
+          "eu-west-2",
+          "eu-west-3",
+          "il-central-1",
+          "me-central-1",
+          "me-south-1",
+          "sa-east-1",
+          "us-east-1",
+          "us-east-2",
+          "us-gov-east-1",
+          "us-gov-west-1",
+          "us-west-1",
+          "us-west-2"
+        ],
+        "order": 2
+      },
+      "bus_name": {
+        "title": "Event Bus Name",
+        "type": "string",
+        "description": "The name of the Event Bridge. Default: 'default'",
+        "order": 3
+      },
+      "event_source": {
+        "title": "Event Source",
+        "type": "string",
+        "description": "The name of the Event Source. Default: 'scb-airbyte'",
+        "order": 4
+      },
+      "event_data_type": {
+        "title": "Event Data Type",
+        "type": "string",
+        "description": "The name of the Event Data Type. Default: 'Call via Scanbuy Airbyte'",
+        "order": 5
+      },
+      "endpoint_url": {
+        "title": "Endpoint URL",
+        "type": "string",
+        "description": "The complete URL to use for the constructed client. By Default, botocore will automatically construct the appropriate URL to use when communicating with a service. You can specify a complete URL (including the “http/https” scheme) to override this behavior.",
+        "order": 6
+      }
+    }
+  }
+}
