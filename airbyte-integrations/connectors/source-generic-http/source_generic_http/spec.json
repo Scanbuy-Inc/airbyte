@@ -1,0 +1,322 @@
+{
+  "documentationUrl": "https://docs.scanbuy.com/",
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+      "url_base",
+      "auth_request",
+      "stream_list"
+    ],
+    "properties": {
+      "url_base": {
+        "order": 1,
+        "group": "base",
+        "title": "Base URL",
+        "type": "string",
+        "description": "Enter base URL for you API"
+      },
+      "auth_request": {
+        "order": 2,
+        "group": "auth",
+        "type": "object",
+        "required": ["verb", "url"],
+        "properties": {
+          "verb": {
+            "type": "string",
+            "title": "Request verb",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD",
+              "OPTION"
+            ],
+            "order": 1
+          },
+          "url": {
+            "title": "API Endpoint",
+            "type": "string",
+            "order": 2,
+            "description": "Enter the API Endpoint"
+          },
+          "headers": {
+            "title": "Headers",
+            "description": "Add headers for the request",
+            "type": "array",
+            "order": 3,
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "title": "Key",
+                  "order": 1
+                },
+                "value": {
+                  "type": "string",
+                  "title": "Value",
+                  "order": 2
+                }
+              }
+            }
+          },
+          "query_params": {
+            "title": "Query Parameters",
+            "description": "Add query params for the request",
+            "type": "array",
+            "order": 4,
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "title": "Key",
+                  "order": 1
+                },
+                "value": {
+                  "type": "string",
+                  "title": "Value",
+                  "order": 2
+                }
+              }
+            }
+          },
+          "body": {
+            "title": "JSON Body",
+            "type": "string",
+            "description": "Add JSON body for the request",
+            "multiline": true,
+            "order": 5
+          },
+          "result_key": {
+            "title": "Result Selector",
+            "type": "string",
+            "order": 6,
+            "description": "Enter the key that you want to select from response. We use pydash to retrieve the value. Read more <a href=\"https://pydash.readthedocs.io/en/latest/api.html#pydash.objects.get\">here</a>."
+          }
+        }
+      },
+      "stream_list": {
+        "order": 3,
+        "title": "Stream List",
+        "group": "stream",
+        "description": "Create a HTTP stream",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["name", "api"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "title": "Enter Stream Name",
+              "order": 1,
+              "description": "Enter the HTTP stream name"
+            },
+            "api": {
+              "type": "object",
+              "required": ["verb", "url"],
+              "order": 2,
+              "properties": {
+                "verb": {
+                  "type": "string",
+                  "title": "Request verb",
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "HEAD",
+                    "OPTION"
+                  ],
+                  "order": 1
+                },
+                "url": {
+                  "title": "API Endpoint",
+                  "type": "string",
+                  "order": 2,
+                  "description": "Enter the API Endpoint"
+                },
+                "headers": {
+                  "title": "Headers",
+                  "description": "Add headers for the request",
+                  "type": "array",
+                  "order": 3,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "key",
+                      "value"
+                    ],
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "title": "Key",
+                        "order": 1
+                      },
+                      "value": {
+                        "type": "string",
+                        "title": "Value",
+                        "order": 2
+                      }
+                    }
+                  }
+                },
+                "query_params": {
+                  "title": "Query Parameters",
+                  "description": "Add query params for the request",
+                  "type": "array",
+                  "order": 4,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "key",
+                      "value"
+                    ],
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "title": "Key",
+                        "order": 1
+                      },
+                      "value": {
+                        "type": "string",
+                        "title": "Value",
+                        "order": 2
+                      }
+                    }
+                  }
+                },
+                "body": {
+                  "title": "JSON Body",
+                  "type": "string",
+                  "description": "Add JSON body for the request",
+                  "multiline": true,
+                  "order": 5
+                },
+                "result_key": {
+                  "title": "Result Selector",
+                  "type": "string",
+                  "order": 6,
+                  "description": "Enter the key that you want to select from response. We use pydash to retrieve the value. Read more <a href=\"https://pydash.readthedocs.io/en/latest/api.html#pydash.objects.get\">here</a>."
+                },
+                "response_schema": {
+                  "title": "Response JSONSchema",
+                  "type": "string",
+                  "description": "Add Response JSONSchema. Default response schema only contains primary key for stream",
+                  "multiline": true,
+                  "order": 6
+                }
+              }
+            },
+            "emit_key": {
+              "title": "Emit Primary Key",
+              "type": "string",
+              "order": 7,
+              "always_show": true,
+              "description": "In case when result is anything but DICT, enter the primary key by which the items will be emitted. Default: 'id'"
+            },
+            "pagination": {
+              "type": "object",
+              "title": "Pagination",
+              "description": "Configure how to setup pagination",
+              "always_show": true,
+              "order": 8,
+              "oneOf": [
+                {
+                  "title": "None",
+                  "additionalProperties": false,
+                  "required": ["type"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "None",
+                      "enum": ["None"],
+                      "default": "None",
+                      "order": 0
+                    }
+                  }
+                },
+                {
+                  "title": "Inject into query params",
+                  "additionalProperties": false,
+                  "required": ["type", "query_params"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "query_params",
+                      "enum": ["query_params"],
+                      "default": "query_params",
+                      "order": 0
+                    },
+                    "query_params": {
+                      "title": "Query Parameters",
+                      "description": "Add query params for the request.",
+                      "type": "array",
+                      "order": 1,
+                      "always_show": true,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "value"
+                        ],
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "title": "Query Param Key",
+                            "order": 1
+                          },
+                          "value": {
+                            "type": "string",
+                            "title": "Response Key",
+                            "description": "Enter the key that you want to select from response. We use pydash to retrieve the value. Read more <a href=\"https://pydash.readthedocs.io/en/latest/api.html#pydash.objects.get\">here</a>.",
+                            "examples": ["next", "ScrollId"],
+                            "order": 2
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "use_cache": {
+              "type": "boolean",
+              "description": "Enables stream requests caching. This field is automatically set by the CDK. Default: False. If the current stream is a parent stream then enable this flag",
+              "title": "Enable Caching",
+              "default": false,
+              "always_show": true,
+              "examples": [false],
+              "order": 9
+            }
+          }
+        }
+      }
+    },
+    "groups": [
+      {
+        "id": "base"
+      },
+      {
+        "id": "auth",
+        "title": "Authentication"
+      },
+      {
+        "id": "stream",
+        "title": "Setup HTTP Streams"
+      }
+    ]
+  }
+}
