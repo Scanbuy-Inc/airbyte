@@ -15,9 +15,19 @@ COPY airbyte-app.tar /airbyte/
 RUN tar xf airbyte-app.tar --strip-components=1 && rm -f airbyte-app.tar && \
     chmod +x /airbyte/base.sh /airbyte/javabase.sh /airbyte/bin/source-mongodb-v2
 
-# Download AWS RDS global CA bundle for DocumentDB TLS support
+# Download AWS RDS global CA bundle for DocumentDB TLS support and import into JVM truststore
 # See: https://github.com/airbytehq/airbyte/issues/10388
-RUN curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /airbyte/aws-rds-ca.pem
+RUN CACERTS=/usr/lib/jvm/java-21-amazon-corretto.x86_64/lib/security/cacerts && \
+    curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /airbyte/aws-rds-ca.pem && \
+    chmod +w "$CACERTS" && \
+    awk '/-----BEGIN CERTIFICATE-----/{c++; out="/tmp/rds-cert-"c".pem"} out{print > out} /-----END CERTIFICATE-----/{out=""}' /airbyte/aws-rds-ca.pem && \
+    for f in /tmp/rds-cert-*.pem; do \
+      keytool -import -noprompt -trustcacerts \
+        -alias "rds-$(basename "$f")" \
+        -keystore "$CACERTS" \
+        -storepass changeit -file "$f" 2>/dev/null || true; \
+    done && \
+    rm -f /tmp/rds-cert-*.pem
 
 LABEL io.airbyte.version="1.3.4"
 LABEL io.airbyte.name="airbyte/source-mongodb-v2"

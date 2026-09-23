@@ -158,6 +158,9 @@ public class MongoDbDebeziumPropertiesManager extends DebeziumPropertiesManager 
       final boolean hasQuery = connectionString.contains("?");
       builder.append(hasQuery ? "&" : "?");
       builder.append("tls=true&tlsCAFile=").append(AWS_CA_BUNDLE_PATH);
+      if (!connectionString.contains("directConnection") && !connectionString.contains("replicaSet")) {
+        builder.append("&directConnection=true");
+      }
     }
     return builder.toString();
   }
