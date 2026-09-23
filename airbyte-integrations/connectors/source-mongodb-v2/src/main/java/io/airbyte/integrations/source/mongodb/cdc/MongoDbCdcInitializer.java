@@ -83,6 +83,11 @@ public class MongoDbCdcInitializer {
     final int queueSize = MongoUtil.getDebeziumEventQueueSize(config);
     final boolean isEnforceSchema = config.getEnforceSchema();
     final Properties defaultDebeziumProperties = MongoDbCdcProperties.getDebeziumProperties();
+    if (config.isDocumentDb()) {
+      // DocumentDB 4.x does not support pre-images (MongoDB 6.0+ feature).
+      // Fall back to change_streams_update_full which does a live lookup after each update event.
+      defaultDebeziumProperties.setProperty(MongoDbCdcProperties.CAPTURE_MODE_KEY, "change_streams_update_full");
+    }
     logOplogInfo(mongoClient);
 
     final List<String> databaseNames = config.getDatabaseNames();
