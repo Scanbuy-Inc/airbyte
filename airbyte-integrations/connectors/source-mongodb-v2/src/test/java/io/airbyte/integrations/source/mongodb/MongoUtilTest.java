@@ -84,7 +84,7 @@ public class MongoUtilTest {
     when(mongoClient.getDatabase(databaseName)).thenReturn(mongoDatabase);
 
     final List<AirbyteStream> streams =
-        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC);
+        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC, false);
     assertNotNull(streams);
     assertEquals(1, streams.size());
     assertEquals(12, streams.get(0).getJsonSchema().get(AIRBYTE_STREAM_PROPERTIES).size());
@@ -114,7 +114,7 @@ public class MongoUtilTest {
     when(mongoClient.getDatabase(databaseName)).thenReturn(mongoDatabase);
 
     final List<AirbyteStream> streams =
-        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, false, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC);
+        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, false, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC, false);
     assertNotNull(streams);
     assertEquals(1, streams.size());
     // In schemaless mode, only the 3 CDC fields + id and data fields should exist.
@@ -154,7 +154,7 @@ public class MongoUtilTest {
     when(aggregateIterable.allowDiskUse(anyBoolean())).thenReturn(aggregateIterable);
 
     final List<AirbyteStream> streams =
-        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC);
+        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC, false);
     assertNotNull(streams);
     assertEquals(0, streams.size());
   }
@@ -183,7 +183,7 @@ public class MongoUtilTest {
     when(aggregateIterable.allowDiskUse(anyBoolean())).thenReturn(aggregateIterable);
 
     final List<AirbyteStream> streams =
-        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC);
+        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC, false);
     assertNotNull(streams);
     assertEquals(1, streams.size());
     assertEquals(11, streams.get(0).getJsonSchema().get(AIRBYTE_STREAM_PROPERTIES).size());
@@ -235,7 +235,7 @@ public class MongoUtilTest {
     when(aggregateIterable.allowDiskUse(anyBoolean())).thenReturn(aggregateIterable);
 
     final List<AirbyteStream> streams =
-        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC);
+        MongoUtil.getAirbyteStreams(mongoClient, databaseName, DEFAULT_DISCOVER_SAMPLE_SIZE, true, DEFAULT_STREAM_DISCOVER_TIMEOUT_SEC, false);
     assertNotNull(streams);
     assertEquals(1, streams.size());
     assertEquals(11, streams.get(0).getJsonSchema().get(AIRBYTE_STREAM_PROPERTIES).size());
@@ -347,7 +347,7 @@ public class MongoUtilTest {
     when(mongoClient.getDatabase(databaseName)).thenReturn(mongoDatabase);
     when(aggregateIterable.allowDiskUse(anyBoolean())).thenReturn(aggregateIterable);
 
-    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream);
+    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream, false);
 
     assertTrue(statistics.isPresent());
     assertEquals(746, statistics.get().count());
@@ -373,7 +373,7 @@ public class MongoUtilTest {
     when(mongoDatabase.getCollection(collectionName)).thenReturn(mongoCollection);
     when(mongoClient.getDatabase(databaseName)).thenReturn(mongoDatabase);
 
-    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream);
+    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream, false);
 
     assertFalse(statistics.isPresent());
   }
@@ -399,7 +399,7 @@ public class MongoUtilTest {
     when(mongoDatabase.getCollection(collectionName)).thenReturn(mongoCollection);
     when(mongoClient.getDatabase(databaseName)).thenReturn(mongoDatabase);
 
-    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream);
+    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream, false);
 
     assertFalse(statistics.isPresent());
   }
@@ -415,7 +415,7 @@ public class MongoUtilTest {
 
     when(mongoDatabase.getCollection(collectionName)).thenThrow(new IllegalArgumentException("test"));
 
-    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream);
+    final Optional<MongoUtil.CollectionStatistics> statistics = MongoUtil.getCollectionStatistics(mongoDatabase, configuredAirbyteStream, false);
 
     assertFalse(statistics.isPresent());
 
