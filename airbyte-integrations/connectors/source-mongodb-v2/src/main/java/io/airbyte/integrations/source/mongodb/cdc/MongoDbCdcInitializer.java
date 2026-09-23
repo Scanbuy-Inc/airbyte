@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * <p />
  * <p />
  * For more information on the iterator selection logic, see
- * {@link MongoDbCdcInitialSnapshotUtils#getStreamsForInitialSnapshot(MongoClient, MongoDbStateManager, ConfiguredAirbyteCatalog, boolean)}
+ * {@link MongoDbCdcInitialSnapshotUtils#getStreamsForInitialSnapshot(MongoClient, MongoDbStateManager, ConfiguredAirbyteCatalog, boolean, boolean)}
  * and {@link AirbyteDebeziumHandler#getIncrementalIterators}
  */
 public class MongoDbCdcInitializer {
@@ -205,7 +205,7 @@ public class MongoDbCdcInitializer {
                 : stateManager.getCdcState();
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams =
-        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, incrementalOnlyStreamsCatalog, savedOffsetIsValid);
+        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, incrementalOnlyStreamsCatalog, savedOffsetIsValid, config.isDocumentDb());
     final InitialSnapshotHandler initialSnapshotHandler = new InitialSnapshotHandler();
 
     final Set<AirbyteStreamNameNamespacePair> streamsStillInInitialSnapshot = stateManager.getStreamStates().entrySet().stream()

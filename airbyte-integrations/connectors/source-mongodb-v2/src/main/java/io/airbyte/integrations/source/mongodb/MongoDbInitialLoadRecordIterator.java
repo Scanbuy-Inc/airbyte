@@ -40,6 +40,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
 
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDbInitialLoadRecordIterator.class);
   private final boolean isEnforceSchema;
+  private final boolean isDocumentDb;
   private final MongoCollection<Document> collection;
   private final Bson fields;
   // Represents the number of rows to get with each query.
@@ -60,6 +61,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
                                    final Bson fields,
                                    final Optional<MongoDbStreamState> existingState,
                                    final boolean isEnforceSchema,
+                                   final boolean isDocumentDb,
                                    final int chunkSize,
                                    final Instant startInstant,
                                    final Optional<Duration> cdcInitialLoadTimeout) {
@@ -67,6 +69,7 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
     this.fields = fields;
     this.currentState = existingState;
     this.isEnforceSchema = isEnforceSchema;
+    this.isDocumentDb = isDocumentDb;
     this.chunkSize = chunkSize;
     // lazy init mongo cursor, otherwise it will risk time out (10 minutes).
     this.currentIterator = null;
@@ -138,13 +141,13 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
         .projection(fields)
         .limit(chunkSize)
         .sort(Sorts.ascending(MongoConstants.ID_FIELD))
-        .allowDiskUse(true)
+        .allowDiskUse(!isDocumentDb)
         .cursor()
         : collection.find()
             .filter(filter)
             .limit(chunkSize)
             .sort(Sorts.ascending(MongoConstants.ID_FIELD))
-            .allowDiskUse(true)
+            .allowDiskUse(!isDocumentDb)
             .cursor();
   }
 

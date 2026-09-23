@@ -121,10 +121,11 @@ public class MongoUtil {
                                                       final String databaseName,
                                                       final Integer sampleSize,
                                                       final boolean isSchemaEnforced,
-                                                      final Integer discoverTimeout) {
+                                                      final Integer discoverTimeout,
+                                                      final boolean isDocumentDb) {
     final Set<String> authorizedCollections = getAuthorizedCollections(mongoClient, databaseName);
     return authorizedCollections.parallelStream()
-        .map(collectionName -> discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout))
+        .map(collectionName -> discoverFields(collectionName, mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, isDocumentDb))
         .filter(Optional::isPresent)
         .map(Optional::get)
         .map(stream -> stream.withIsResumable(true))
@@ -167,13 +168,15 @@ public class MongoUtil {
    * @return The {@link CollectionStatistics} of the collection or an empty {@link Optional} if the
    *         statistics cannot be retrieved.
    */
-  public static Optional<CollectionStatistics> getCollectionStatistics(final MongoDatabase mongoDatabase, final ConfiguredAirbyteStream stream) {
+  public static Optional<CollectionStatistics> getCollectionStatistics(final MongoDatabase mongoDatabase,
+                                                                       final ConfiguredAirbyteStream stream,
+                                                                       final boolean isDocumentDb) {
     try {
       final Map<String, Object> collStats = Map.of(MongoConstants.STORAGE_STATS_KEY, Map.of(), MongoConstants.COUNT_KEY, Map.of());
       final MongoCollection<Document> collection = mongoDatabase.getCollection(stream.getStream().getName());
       final AggregateIterable<Document> output = collection.aggregate(List.of(new Document("$collStats", collStats)));
 
-      try (final MongoCursor<Document> cursor = output.allowDiskUse(true).cursor()) {
+      try (final MongoCursor<Document> cursor = output.allowDiskUse(!isDocumentDb).cursor()) {
         if (cursor.hasNext()) {
           final Document stats = cursor.next();
           @SuppressWarnings("unchecked")
@@ -303,7 +306,8 @@ public class MongoUtil {
                                                         final String databaseName,
                                                         final Integer sampleSize,
                                                         final boolean isSchemaEnforced,
-                                                        final Integer discoverTimeout) {
+                                                        final Integer discoverTimeout,
+                                                        final boolean isDocumentDb) {
     /*
      * Fetch the keys/types from the first N documents and the last N documents from the collection.
      * This is an attempt to "survey" the documents in the collection for variance in the schema keys.
@@ -311,11 +315,11 @@ public class MongoUtil {
     final Set<Field> discoveredFields;
     final MongoCollection<Document> mongoCollection = mongoClient.getDatabase(databaseName).getCollection(collectionName);
     if (isSchemaEnforced) {
-      discoveredFields = new HashSet<>(getFieldsInCollection(mongoCollection, sampleSize, discoverTimeout));
+      discoveredFields = new HashSet<>(getFieldsInCollection(mongoCollection, sampleSize, discoverTimeout, isDocumentDb));
     } else {
       // In schemaless mode, we only sample one record as we're only interested in the _id field (which
       // exists on every record).
-      discoveredFields = new HashSet<>(getFieldsForSchemaless(mongoCollection, discoverTimeout));
+      discoveredFields = new HashSet<>(getFieldsForSchemaless(mongoCollection, discoverTimeout, isDocumentDb));
     }
     return Optional
         .ofNullable(
@@ -325,7 +329,8 @@ public class MongoUtil {
 
   private static Set<Field> getFieldsInCollection(final MongoCollection<Document> collection,
                                                   final Integer sampleSize,
-                                                  final Integer discoverTimeout) {
+                                                  final Integer discoverTimeout,
+                                                  final boolean isDocumentDb) {
     final Set<Field> discoveredFields = new HashSet<>();
     final Map<String, Object> fieldsMap = Map.of("input", Map.of("$objectToArray", "$$ROOT"),
         "as", "each",
@@ -354,7 +359,7 @@ public class MongoUtil {
      * "$$each.v" } } } } } } }, { "$unwind" : "$fields" }, { "$group" : { "_id" : $fields } } ] )
      */
     final AggregateIterable<Document> output = collection.aggregate(aggregateList);
-    try (final MongoCursor<Document> cursor = output.allowDiskUse(true).maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
+    try (final MongoCursor<Document> cursor = output.allowDiskUse(!isDocumentDb).maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
       while (cursor.hasNext()) {
         @SuppressWarnings("unchecked")
         final Map<String, String> fields = (Map<String, String>) cursor.next().get("_id");
@@ -368,7 +373,7 @@ public class MongoUtil {
     return discoveredFields;
   }
 
-  private static Set<Field> getFieldsForSchemaless(final MongoCollection<Document> collection, final Integer discoverTimeout) {
+  private static Set<Field> getFieldsForSchemaless(final MongoCollection<Document> collection, final Integer discoverTimeout, final boolean isDocumentDb) {
     final Set<Field> discoveredFields = new HashSet<>();
     final AggregateIterable<Document> output = collection.aggregate(Arrays.asList(
         Aggregates.sample(1), // Selects one random document
@@ -377,7 +382,7 @@ public class MongoUtil {
             Projections.computed("_idType", new Document("$type", "$_id")) // Gets the type of the _id field
         ))));
     LOGGER.info("Stream discover timeout value (seconds): " + discoverTimeout);
-    try (final MongoCursor<Document> cursor = output.allowDiskUse(true).maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
+    try (final MongoCursor<Document> cursor = output.allowDiskUse(!isDocumentDb).maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
       while (cursor.hasNext()) {
         final JsonSchemaType schemaType = convertToSchemaType((String) cursor.next().get("_idType"));
         discoveredFields.add(new MongoField(MongoConstants.ID_FIELD, schemaType));

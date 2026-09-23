@@ -75,6 +75,10 @@ public record MongoDbSourceConfig(JsonNode rawConfig) {
     return getDatabaseConfig().has(TLS_CONFIGURATION_KEY) && getDatabaseConfig().get(TLS_CONFIGURATION_KEY).asBoolean(false);
   }
 
+  public boolean isDocumentDb() {
+    return isTlsEnabled();
+  }
+
   public Integer getSampleSize() {
     if (rawConfig.has(DISCOVER_SAMPLE_SIZE_CONFIGURATION_KEY)) {
       return rawConfig.get(DISCOVER_SAMPLE_SIZE_CONFIGURATION_KEY).asInt(DEFAULT_DISCOVER_SAMPLE_SIZE);

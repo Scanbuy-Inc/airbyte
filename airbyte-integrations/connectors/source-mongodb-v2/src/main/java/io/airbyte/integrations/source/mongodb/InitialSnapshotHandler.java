@@ -57,6 +57,7 @@ public class InitialSnapshotHandler {
                                                                   final Instant emittedAt,
                                                                   final Optional<Duration> cdcInitialLoadTimeout) {
     final boolean isEnforceSchema = config.getEnforceSchema();
+    final boolean isDocumentDb = config.isDocumentDb();
     final var checkpointInterval = config.getCheckpointInterval();
     final String MULTIPLE_ID_TYPES_ANALYTICS_MESSAGE_KEY = "db-sources-mongo-multiple-id-types";
 
@@ -87,8 +88,8 @@ public class InitialSnapshotHandler {
           final Optional<MongoDbStreamState> existingState =
               stateManager.getStreamState(airbyteStream.getStream().getName(), airbyteStream.getStream().getNamespace());
 
-          final Optional<CollectionStatistics> collectionStatistics = MongoUtil.getCollectionStatistics(database, airbyteStream);
-          final var recordIterator = new MongoDbInitialLoadRecordIterator(collection, fields, existingState, isEnforceSchema,
+          final Optional<CollectionStatistics> collectionStatistics = MongoUtil.getCollectionStatistics(database, airbyteStream, isDocumentDb);
+          final var recordIterator = new MongoDbInitialLoadRecordIterator(collection, fields, existingState, isEnforceSchema, isDocumentDb,
               MongoUtil.getChunkSizeForCollection(collectionStatistics, airbyteStream), emittedAt, cdcInitialLoadTimeout);
           final var stateIterator =
               new SourceStateIterator<>(recordIterator, airbyteStream, stateManager, new StateEmitFrequency(checkpointInterval,
