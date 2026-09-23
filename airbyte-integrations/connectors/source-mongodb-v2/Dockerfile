@@ -17,7 +17,7 @@ RUN tar xf airbyte-app.tar --strip-components=1 && rm -f airbyte-app.tar && \
 
 # Download AWS RDS global CA bundle for DocumentDB TLS support and import into JVM truststore
 # See: https://github.com/airbytehq/airbyte/issues/10388
-RUN CACERTS=/usr/lib/jvm/java-21-amazon-corretto.x86_64/lib/security/cacerts && \
+RUN CACERTS=$(find /usr/lib/jvm -name cacerts | head -1) && \
     curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /airbyte/aws-rds-ca.pem && \
     chmod +w "$CACERTS" && \
     awk '/-----BEGIN CERTIFICATE-----/{c++; out="/tmp/rds-cert-"c".pem"} out{print > out} /-----END CERTIFICATE-----/{out=""}' /airbyte/aws-rds-ca.pem && \

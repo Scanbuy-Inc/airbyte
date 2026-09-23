@@ -136,19 +136,20 @@ public class MongoDbInitialLoadRecordIterator extends AbstractIterator<Document>
 
   private MongoCursor<Document> buildNewQueryIterator() {
     Bson filter = buildFilter();
-    return isEnforceSchema ? collection.find()
+    final var schemaQuery = collection.find()
         .filter(filter)
         .projection(fields)
         .limit(chunkSize)
-        .sort(Sorts.ascending(MongoConstants.ID_FIELD))
-        .allowDiskUse(!isDocumentDb)
-        .cursor()
-        : collection.find()
-            .filter(filter)
-            .limit(chunkSize)
-            .sort(Sorts.ascending(MongoConstants.ID_FIELD))
-            .allowDiskUse(!isDocumentDb)
-            .cursor();
+        .sort(Sorts.ascending(MongoConstants.ID_FIELD));
+    final var schemalessQuery = collection.find()
+        .filter(filter)
+        .limit(chunkSize)
+        .sort(Sorts.ascending(MongoConstants.ID_FIELD));
+    if (!isDocumentDb) {
+      schemaQuery.allowDiskUse(true);
+      schemalessQuery.allowDiskUse(true);
+    }
+    return isEnforceSchema ? schemaQuery.cursor() : schemalessQuery.cursor();
   }
 
   private Bson buildFilter() {

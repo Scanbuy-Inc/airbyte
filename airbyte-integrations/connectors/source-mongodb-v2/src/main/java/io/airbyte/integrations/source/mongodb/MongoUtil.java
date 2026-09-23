@@ -171,12 +171,18 @@ public class MongoUtil {
   public static Optional<CollectionStatistics> getCollectionStatistics(final MongoDatabase mongoDatabase,
                                                                        final ConfiguredAirbyteStream stream,
                                                                        final boolean isDocumentDb) {
+    if (isDocumentDb) {
+      return Optional.empty();
+    }
     try {
       final Map<String, Object> collStats = Map.of(MongoConstants.STORAGE_STATS_KEY, Map.of(), MongoConstants.COUNT_KEY, Map.of());
       final MongoCollection<Document> collection = mongoDatabase.getCollection(stream.getStream().getName());
       final AggregateIterable<Document> output = collection.aggregate(List.of(new Document("$collStats", collStats)));
 
-      try (final MongoCursor<Document> cursor = output.allowDiskUse(!isDocumentDb).cursor()) {
+      if (!isDocumentDb) {
+        output.allowDiskUse(true);
+      }
+      try (final MongoCursor<Document> cursor = output.cursor()) {
         if (cursor.hasNext()) {
           final Document stats = cursor.next();
           @SuppressWarnings("unchecked")
@@ -359,7 +365,10 @@ public class MongoUtil {
      * "$$each.v" } } } } } } }, { "$unwind" : "$fields" }, { "$group" : { "_id" : $fields } } ] )
      */
     final AggregateIterable<Document> output = collection.aggregate(aggregateList);
-    try (final MongoCursor<Document> cursor = output.allowDiskUse(!isDocumentDb).maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
+    if (!isDocumentDb) {
+      output.allowDiskUse(true);
+    }
+    try (final MongoCursor<Document> cursor = output.maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
       while (cursor.hasNext()) {
         @SuppressWarnings("unchecked")
         final Map<String, String> fields = (Map<String, String>) cursor.next().get("_id");
@@ -382,7 +391,10 @@ public class MongoUtil {
             Projections.computed("_idType", new Document("$type", "$_id")) // Gets the type of the _id field
         ))));
     LOGGER.info("Stream discover timeout value (seconds): " + discoverTimeout);
-    try (final MongoCursor<Document> cursor = output.allowDiskUse(!isDocumentDb).maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
+    if (!isDocumentDb) {
+      output.allowDiskUse(true);
+    }
+    try (final MongoCursor<Document> cursor = output.maxTime(discoverTimeout, TimeUnit.SECONDS).cursor()) {
       while (cursor.hasNext()) {
         final JsonSchemaType schemaType = convertToSchemaType((String) cursor.next().get("_idType"));
         discoveredFields.add(new MongoField(MongoConstants.ID_FIELD, schemaType));
