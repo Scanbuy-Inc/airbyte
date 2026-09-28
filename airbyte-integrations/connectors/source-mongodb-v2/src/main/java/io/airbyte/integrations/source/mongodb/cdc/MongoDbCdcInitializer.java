@@ -84,9 +84,15 @@ public class MongoDbCdcInitializer {
     final boolean isEnforceSchema = config.getEnforceSchema();
     final Properties defaultDebeziumProperties = MongoDbCdcProperties.getDebeziumProperties();
     if (config.isDocumentDb()) {
-      // DocumentDB 4.x does not support pre-images (MongoDB 6.0+ feature).
-      // Fall back to change_streams_update_full which does a live lookup after each update event.
-      defaultDebeziumProperties.setProperty(MongoDbCdcProperties.CAPTURE_MODE_KEY, "change_streams_update_full");
+      final int docDbMajorVersion = getDocumentDbMajorVersion(mongoClient);
+      if (docDbMajorVersion < 6) {
+        // DocumentDB < 6.0 does not support pre-images (MongoDB 6.0+ feature).
+        // Fall back to change_streams_update_full which does a live lookup after each update event.
+        LOGGER.info("[DocumentDB] Version {} detected — using change_streams_update_full capture mode.", docDbMajorVersion);
+        defaultDebeziumProperties.setProperty(MongoDbCdcProperties.CAPTURE_MODE_KEY, "change_streams_update_full");
+      } else {
+        LOGGER.info("[DocumentDB] Version {} detected — using default capture mode with pre-image support.", docDbMajorVersion);
+      }
     }
     logOplogInfo(mongoClient);
 
@@ -104,8 +110,17 @@ public class MongoDbCdcInitializer {
         MongoDbResumeTokenHelper.getMostRecentResumeTokenForDatabases(mongoClient, databaseNames, streamsByDatabase);
 
     final String serverId = config.getDatabaseConfig().get("connection_string").asText();
-    final JsonNode initialDebeziumState =
-        mongoDbDebeziumStateUtil.constructInitialDebeziumState(initialResumeToken, serverId);
+    final JsonNode initialDebeziumState;
+    if (initialResumeToken != null) {
+      initialDebeziumState = mongoDbDebeziumStateUtil.constructInitialDebeziumState(initialResumeToken, serverId);
+    } else {
+      // DocumentDB does not support post-batch resume tokens when the change stream has no events.
+      // Use the server's operationTime as a timestamp-only anchor so Debezium uses startAtOperationTime.
+      // This ensures the next incremental sync resumes from this point and does not miss changes.
+      LOGGER.warn("[DocumentDB] Could not obtain initial resume token. Using server operationTime as CDC anchor.");
+      final BsonTimestamp operationTime = getServerOperationTime(mongoClient);
+      initialDebeziumState = MongoDbDebeziumStateUtil.formatTimestampOnlyState(serverId, operationTime);
+    }
 
     boolean needsStateMigration = false;
     String extractedResumeTokenString = null;
@@ -148,8 +163,9 @@ public class MongoDbCdcInitializer {
       LOGGER.info("Created clean MongoDbCdcState from extracted resume token");
     } else if (stateManager.getCdcState() == null ||
         stateManager.getCdcState().state() == null ||
-        stateManager.getCdcState().state().isNull()) {
-      // No cdc state: create a new state from initial Debezium state.
+        stateManager.getCdcState().state().isNull() ||
+        (stateManager.getCdcState().state().isObject() && stateManager.getCdcState().state().isEmpty())) {
+      // No cdc state (or empty state from a previous failed run): create a new state from initial Debezium state.
       cdcState = new MongoDbCdcState(initialDebeziumState, isEnforceSchema);
       LOGGER.info("Created new MongoDbCdcState from initial state");
     } else {
@@ -164,8 +180,9 @@ public class MongoDbCdcInitializer {
         cdcState.state(),
         config.getDatabaseConfig());
 
-    // We should always be able to extract offset out of state if it's not null
-    if (cdcState.state() != null && optSavedOffset.isEmpty()) {
+    // We should always be able to extract offset out of state if it's not null,
+    // UNLESS it is a timestamp-only state (DocumentDB) which has no resume_token for parseSavedOffset.
+    if (cdcState.state() != null && optSavedOffset.isEmpty() && !isTimestampOnlyState(cdcState.state())) {
       throw new RuntimeException(
           "Unable extract the offset out of state, State mutation might not be working. " + cdcState.state());
     }
@@ -183,10 +200,18 @@ public class MongoDbCdcInitializer {
             cdcStreamList);
     final Properties validationDebeziumProperties = validationPropertiesManager.getDebeziumProperties(validationOffsetManager);
 
-    final boolean savedOffsetIsValid =
-        optSavedOffset
-            .filter(savedOffset -> mongoDbDebeziumStateUtil.isValidResumeToken(savedOffset, mongoClient, validationDebeziumProperties))
-            .isPresent();
+    // Timestamp-only state (DocumentDB) has no resume_token — there is nothing to validate against
+    // the change stream. Treat it as valid so Debezium uses startAtOperationTime.
+    // Also treat null state as valid (fresh start, not an invalid cursor).
+    final boolean savedOffsetIsValid;
+    if (cdcState.state() == null || isTimestampOnlyState(cdcState.state())) {
+      savedOffsetIsValid = true;
+    } else {
+      savedOffsetIsValid =
+          optSavedOffset
+              .filter(savedOffset -> mongoDbDebeziumStateUtil.isValidResumeToken(savedOffset, mongoClient, validationDebeziumProperties))
+              .isPresent();
+    }
 
     if (!savedOffsetIsValid) {
       AirbyteTraceMessageUtility.emitAnalyticsTrace(cdcCursorInvalidMessage());
@@ -237,7 +262,7 @@ public class MongoDbCdcInitializer {
     final AirbyteDebeziumHandler<BsonTimestamp> handler = new AirbyteDebeziumHandler<>(config.getDatabaseConfig(),
         new MongoDbCdcTargetPosition(initialResumeToken), false, firstRecordWaitTime, queueSize, false);
 
-    final MongoDbCdcStateHandler mongoDbCdcStateHandler = new MongoDbCdcStateHandler(stateManager);
+    final MongoDbCdcStateHandler mongoDbCdcStateHandler = new MongoDbCdcStateHandler(stateManager, serverId);
     final MongoDbCdcSavedInfoFetcher cdcSavedInfoFetcher = new MongoDbCdcSavedInfoFetcher(stateToBeUsed);
 
     // We can close the client after the initial snapshot is complete, incremental
@@ -341,6 +366,65 @@ public class MongoDbCdcInitializer {
       }
     }
     return false; // All state entries match current state format
+  }
+
+  /**
+   * Returns true if the CDC state contains only a timestamp (sec/ord) with no resume_token.
+   * This is the DocumentDB-compatible state format that causes Debezium to use startAtOperationTime.
+   */
+  private static boolean isTimestampOnlyState(final JsonNode state) {
+    if (state == null || !state.isObject() || state.isEmpty()) {
+      return false;
+    }
+    try {
+      final String valueString = state.fields().next().getValue().asText();
+      final JsonNode valueJson = Jsons.deserialize(valueString);
+      return valueJson.has(MongoDbDebeziumConstants.OffsetState.VALUE_SECONDS)
+          && !valueJson.has(MongoDbDebeziumConstants.OffsetState.VALUE_RESUME_TOKEN);
+    } catch (final Exception e) {
+      return false;
+    }
+  }
+
+  /**
+   * Returns the major version of the DocumentDB server (e.g. 4 or 6). Used to enable version-aware
+   * behaviour such as pre-image support introduced in DocumentDB 6.0. Returns 0 if the version
+   * cannot be determined, which safely falls back to the most conservative behaviour.
+   */
+  private int getDocumentDbMajorVersion(final MongoClient mongoClient) {
+    try {
+      final BsonDocument result = mongoClient.getDatabase("admin")
+          .runCommand(new Document("buildInfo", 1), BsonDocument.class);
+      final String version = result.getString("version").getValue();
+      return Integer.parseInt(version.split("\\.")[0]);
+    } catch (final Exception e) {
+      LOGGER.warn("[DocumentDB] Could not determine server version: {}. Assuming version < 6.", e.getMessage());
+      return 0;
+    }
+  }
+
+  /**
+   * Retrieves the server's current operation time via the {@code hello} command. Used as the CDC
+   * anchor timestamp for Amazon DocumentDB, which does not provide post-batch resume tokens.
+   * Falls back to current system time if the command fails.
+   */
+  private BsonTimestamp getServerOperationTime(final MongoClient mongoClient) {
+    try {
+      final BsonDocument result = mongoClient.getDatabase("admin")
+          .runCommand(new Document("hello", 1), BsonDocument.class);
+      if (result.containsKey("operationTime")) {
+        final BsonTimestamp ts = result.getTimestamp("operationTime");
+        LOGGER.info("[DocumentDB] Using server operationTime {} (epoch seconds: {}) as CDC anchor.",
+            ts, ts.getTime());
+        return ts;
+      }
+    } catch (final Exception e) {
+      LOGGER.warn("[DocumentDB] Could not get operationTime from hello command: {}", e.getMessage());
+    }
+    final BsonTimestamp fallback = new BsonTimestamp((int) (System.currentTimeMillis() / 1000), 0);
+    LOGGER.warn("[DocumentDB] Falling back to current system time as CDC anchor: {} (epoch seconds: {})",
+        fallback, fallback.getTime());
+    return fallback;
   }
 
   /**
