@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.bson.BsonBinary;
 import org.bson.BsonBinarySubType;
+import org.bson.Document;
 import org.bson.UuidRepresentation;
 import org.bson.internal.UuidHelper;
 import org.bson.types.Binary;
@@ -24,7 +25,8 @@ public enum IdType {
   STRING("string", "String"),
   INT("int", "Integer"),
   LONG("long", "Long"),
-  BINARY("binData", "Binary");
+  BINARY("binData", "Binary"),
+  DOCUMENT("object", "Document");
 
   private static final Map<String, IdType> byBsonType = new HashMap<>();
   static {
@@ -90,6 +92,9 @@ public enum IdType {
       } else {
         strId = getEncoder().encodeToString(binLastId.getData());
       }
+    } else if (idType == IdType.DOCUMENT) {
+      // Resume token _id: extract _data hex string for ordering and state serialization
+      strId = ((Document) id).getString("_data");
     } else {
       strId = id.toString();
     }
