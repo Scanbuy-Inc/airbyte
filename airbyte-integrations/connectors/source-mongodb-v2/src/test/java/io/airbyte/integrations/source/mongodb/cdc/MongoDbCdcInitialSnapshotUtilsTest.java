@@ -70,7 +70,7 @@ class MongoDbCdcInitialSnapshotUtilsTest {
     when(mongoClient.getDatabase(NAMESPACE)).thenReturn(mongoDatabase);
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams =
-        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid);
+        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid, false);
     assertEquals(2, initialSnapshotStreams.size());
     assertTrue(initialSnapshotStreams.contains(inProgressStream));
     assertTrue(initialSnapshotStreams.contains(newStream));
@@ -94,7 +94,7 @@ class MongoDbCdcInitialSnapshotUtilsTest {
     when(mongoClient.getDatabase(NAMESPACE)).thenReturn(mongoDatabase);
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams =
-        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid);
+        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid, false);
 
     assertEquals(3, initialSnapshotStreams.size());
     assertTrue(initialSnapshotStreams.contains(completedStream));
@@ -122,7 +122,7 @@ class MongoDbCdcInitialSnapshotUtilsTest {
     when(mongoDatabase.getCollection(NEW_NAME)).thenThrow(new IllegalArgumentException("test"));
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams =
-        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid);
+        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid, false);
     assertEquals(2, initialSnapshotStreams.size());
     assertTrue(initialSnapshotStreams.contains(inProgressStream));
     assertTrue(initialSnapshotStreams.contains(newStream));
@@ -147,7 +147,7 @@ class MongoDbCdcInitialSnapshotUtilsTest {
     when(mongoClient.getDatabase(NAMESPACE)).thenReturn(mongoDatabase);
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams =
-        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid);
+        MongoDbCdcInitialSnapshotUtils.getStreamsForInitialSnapshot(mongoClient, stateManager, catalog, savedOffsetIsValid, false);
     assertEquals(2, initialSnapshotStreams.size());
     assertTrue(initialSnapshotStreams.contains(inProgressStream));
     assertTrue(initialSnapshotStreams.contains(newStream));

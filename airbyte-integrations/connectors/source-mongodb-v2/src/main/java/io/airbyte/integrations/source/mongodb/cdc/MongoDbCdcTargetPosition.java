@@ -33,8 +33,10 @@ public class MongoDbCdcTargetPosition implements CdcTargetPosition<BsonTimestamp
 
   private final BsonTimestamp resumeTokenTimestamp;
 
-  public MongoDbCdcTargetPosition(final BsonDocument resumeToken) {
-    this.resumeTokenTimestamp = ResumeTokens.getTimestamp(resumeToken);
+  public MongoDbCdcTargetPosition(@Nullable final BsonDocument resumeToken) {
+    this.resumeTokenTimestamp = resumeToken != null
+        ? ResumeTokens.getTimestamp(resumeToken)
+        : new BsonTimestamp((int) (System.currentTimeMillis() / 1000), 0);
   }
 
   @VisibleForTesting
@@ -73,9 +75,20 @@ public class MongoDbCdcTargetPosition implements CdcTargetPosition<BsonTimestamp
 
   @Override
   public BsonTimestamp extractPositionFromHeartbeatOffset(final Map<String, ?> sourceOffset) {
-    return ResumeTokens.getTimestamp(
-        ResumeTokens.fromData(
-            sourceOffset.get(MongoDbDebeziumConstants.ChangeEvent.SOURCE_RESUME_TOKEN).toString()));
+    try {
+      return ResumeTokens.getTimestamp(
+          ResumeTokens.fromData(
+              sourceOffset.get(MongoDbDebeziumConstants.ChangeEvent.SOURCE_RESUME_TOKEN).toString()));
+    } catch (final IllegalArgumentException e) {
+      // DocumentDB resume tokens use BSON Double instead of Decimal128, incompatible with Debezium's
+      // Decimal128 parser. Return the current system clock as the heartbeat position so that
+      // reachedTargetPosition(BsonTimestamp) can compare it against the target and stop the sync
+      // once all gap events have been processed. The CDK skips the target check when null is returned,
+      // so returning null would cause the sync to run indefinitely.
+      LOGGER.warn("[DocumentDB] Could not parse heartbeat resume token: {}. Using system clock as heartbeat position.",
+          e.getMessage());
+      return new BsonTimestamp((int) (System.currentTimeMillis() / 1000), 0);
+    }
   }
 
   @Override
@@ -84,8 +97,19 @@ public class MongoDbCdcTargetPosition implements CdcTargetPosition<BsonTimestamp
       return false;
     }
 
-    return MongoDbResumeTokenHelper.extractTimestampFromEvent(event.getEventValueAsJson()).getValue() >= ResumeTokens
-        .getTimestamp(ResumeTokens.fromData(getResumeToken(offset))).getValue();
+    try {
+      final String resumeToken = getResumeToken(offset);
+      if (resumeToken == null) {
+        // Timestamp-only state (DocumentDB) has no resume_token — cannot compare against event position.
+        return false;
+      }
+      return MongoDbResumeTokenHelper.extractTimestampFromEvent(event.getEventValueAsJson()).getValue() >= ResumeTokens
+          .getTimestamp(ResumeTokens.fromData(resumeToken)).getValue();
+    } catch (final IllegalArgumentException e) {
+      // DocumentDB resume tokens may use a non-Decimal128 BSON type incompatible with Debezium's parser.
+      LOGGER.warn("[DocumentDB] Could not parse resume token in isEventAheadOffset: {}. Returning false.", e.getMessage());
+      return false;
+    }
   }
 
   @Override
@@ -97,12 +121,19 @@ public class MongoDbCdcTargetPosition implements CdcTargetPosition<BsonTimestamp
       return false;
     }
 
-    return getResumeToken(offsetA).equals(getResumeToken(offsetB));
+    final String tokenA = getResumeToken(offsetA);
+    final String tokenB = getResumeToken(offsetB);
+    if (tokenA == null || tokenB == null) {
+      // Timestamp-only state (DocumentDB) has no resume_token — cannot confirm same offset.
+      return false;
+    }
+    return tokenA.equals(tokenB);
   }
 
   private static String getResumeToken(final Map<String, String> offset) {
     final JsonNode offsetJson = Jsons.deserialize((String) offset.values().toArray()[0]);
-    return offsetJson.get(MongoDbDebeziumConstants.OffsetState.VALUE_RESUME_TOKEN).asText();
+    final JsonNode resumeTokenNode = offsetJson.get(MongoDbDebeziumConstants.OffsetState.VALUE_RESUME_TOKEN);
+    return resumeTokenNode != null ? resumeTokenNode.asText() : null;
   }
 
   @Override

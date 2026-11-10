@@ -4,7 +4,9 @@
 
 package io.airbyte.integrations.source.mongodb.cdc;
 
+import static io.airbyte.integrations.source.mongodb.MongoConstants.AWS_CA_BUNDLE_PATH;
 import static io.airbyte.integrations.source.mongodb.MongoConstants.CAPTURE_MODE_POST_IMAGE_OPTION;
+import static io.airbyte.integrations.source.mongodb.MongoConstants.TLS_CONFIGURATION_KEY;
 import static io.airbyte.integrations.source.mongodb.MongoConstants.UPDATE_CAPTURE_MODE;
 import static io.airbyte.integrations.source.mongodb.cdc.MongoDbDebeziumConstants.Configuration.AUTH_SOURCE_CONFIGURATION_KEY;
 import static io.airbyte.integrations.source.mongodb.cdc.MongoDbDebeziumConstants.Configuration.CONNECTION_STRING_CONFIGURATION_KEY;
@@ -152,6 +154,14 @@ public class MongoDbDebeziumPropertiesManager extends DebeziumPropertiesManager 
         .replaceAll(CREDENTIALS_PLACEHOLDER, "");
     final StringBuilder builder = new StringBuilder();
     builder.append(connectionString);
+    if (config.has(TLS_CONFIGURATION_KEY) && config.get(TLS_CONFIGURATION_KEY).asBoolean(false)) {
+      final boolean hasQuery = connectionString.contains("?");
+      builder.append(hasQuery ? "&" : "?");
+      builder.append("tls=true&tlsCAFile=").append(AWS_CA_BUNDLE_PATH);
+      if (!connectionString.contains("directConnection") && !connectionString.contains("replicaSet")) {
+        builder.append("&directConnection=true");
+      }
+    }
     return builder.toString();
   }
 

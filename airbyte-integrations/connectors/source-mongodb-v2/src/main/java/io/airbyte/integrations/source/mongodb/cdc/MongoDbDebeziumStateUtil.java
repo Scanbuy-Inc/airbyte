@@ -87,6 +87,27 @@ public class MongoDbDebeziumStateUtil implements DebeziumStateUtil {
   }
 
   /**
+   * Formats a timestamp-only Debezium state (no resume token) for storage in the offset data file.
+   * When Debezium reads this state it uses {@code startAtOperationTime} instead of
+   * {@code resumeAfter}, which is required for Amazon DocumentDB where post-batch resume tokens are
+   * unavailable and per-event token formats are incompatible with Debezium's Decimal128 parser.
+   *
+   * @param serverId The ID of the target database (connection string for DocumentDB).
+   * @param timestamp The server operation timestamp to use as the CDC start position.
+   * @return The offset state as a {@link JsonNode}.
+   */
+  public static JsonNode formatTimestampOnlyState(final String serverId, final BsonTimestamp timestamp) {
+    final List<Object> key = generateOffsetKey(serverId);
+
+    final Map<String, Object> value = new LinkedHashMap<>();
+    value.put(MongoDbDebeziumConstants.OffsetState.VALUE_SECONDS, timestamp.getTime());
+    value.put(MongoDbDebeziumConstants.OffsetState.VALUE_INCREMENT, timestamp.getInc());
+    // No resume_token field — Debezium will use startAtOperationTime instead of resumeAfter.
+
+    return Jsons.jsonNode(Map.of(Jsons.serialize(key), Jsons.serialize(value)));
+  }
+
+  /**
    * Tests whether the provided saved offset resume token is valid for resuming a MongoDB change event
    * stream. Uses the same pipeline as Debezium to ensure consistency between validation and actual
    * CDC resumption.
@@ -115,14 +136,25 @@ public class MongoDbDebeziumStateUtil implements DebeziumStateUtil {
     stream.resumeAfter(savedOffset);
 
     try (final var ignored = stream.cursor()) {
-      LOGGER.info("Valid resume token '{}' present, corresponding to timestamp (seconds after epoch) : {}. "
-          + "Incremental sync will be performed for up-to-date streams.",
-          ResumeTokens.getData(savedOffset).asString().getValue(), ResumeTokens.getTimestamp(savedOffset).getTime());
+      try {
+        LOGGER.info("Valid resume token '{}' present, corresponding to timestamp (seconds after epoch) : {}. "
+            + "Incremental sync will be performed for up-to-date streams.",
+            ResumeTokens.getData(savedOffset).asString().getValue(), ResumeTokens.getTimestamp(savedOffset).getTime());
+      } catch (final IllegalArgumentException tokenParseEx) {
+        // DocumentDB resume tokens use BSON Double instead of Decimal128 — log without timestamp details.
+        LOGGER.info("[DocumentDB] Valid resume token present (token format incompatible with timestamp extraction). "
+            + "Incremental sync will be performed for up-to-date streams.");
+      }
       return true;
     } catch (final MongoCommandException | MongoChangeStreamException e) {
       LOGGER.info("Exception : {}", e.getMessage());
-      LOGGER.info("Invalid resume token '{}' present, corresponding to timestamp (seconds after epoch) : {}, due to reason {}",
-          ResumeTokens.getData(savedOffset).asString().getValue(), ResumeTokens.getTimestamp(savedOffset).getTime(), e.getMessage());
+      try {
+        LOGGER.info("Invalid resume token '{}' present, corresponding to timestamp (seconds after epoch) : {}, due to reason {}",
+            ResumeTokens.getData(savedOffset).asString().getValue(), ResumeTokens.getTimestamp(savedOffset).getTime(), e.getMessage());
+      } catch (final IllegalArgumentException tokenParseEx) {
+        LOGGER.info("[DocumentDB] Invalid resume token (token format incompatible with timestamp extraction), due to reason {}",
+            e.getMessage());
+      }
       return false;
     }
   }

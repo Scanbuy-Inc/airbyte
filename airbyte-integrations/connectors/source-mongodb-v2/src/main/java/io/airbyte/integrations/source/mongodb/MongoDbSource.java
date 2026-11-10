@@ -97,7 +97,7 @@ public class MongoDbSource extends BaseConnector implements Source {
               .withStatus(AirbyteConnectionStatus.Status.FAILED);
         }
 
-        if (!ClusterType.REPLICA_SET.equals(mongoClient.getClusterDescription().getType())) {
+        if (!sourceConfig.isDocumentDb() && !ClusterType.REPLICA_SET.equals(mongoClient.getClusterDescription().getType())) {
           LOGGER.error("Target MongoDB instance is not a replica set cluster.");
           return new AirbyteConnectionStatus()
               .withMessage("Target MongoDB instance is not a replica set cluster.")
@@ -137,7 +137,7 @@ public class MongoDbSource extends BaseConnector implements Source {
         List<AirbyteStream> allStreams = new ArrayList<>();
         for (String databaseName : databaseNames) {
           LOGGER.info("Discovering collections in database: {}", databaseName);
-          List<AirbyteStream> streams = MongoUtil.getAirbyteStreams(mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout);
+          List<AirbyteStream> streams = MongoUtil.getAirbyteStreams(mongoClient, databaseName, sampleSize, isSchemaEnforced, discoverTimeout, sourceConfig.isDocumentDb());
           allStreams.addAll(streams);
         }
 

@@ -67,7 +67,8 @@ public class MongoDbCdcInitialSnapshotUtils {
                                                                            final MongoClient mongoClient,
                                                                            final MongoDbStateManager stateManager,
                                                                            final ConfiguredAirbyteCatalog fullCatalog,
-                                                                           final boolean savedOffsetIsValid) {
+                                                                           final boolean savedOffsetIsValid,
+                                                                           final boolean isDocumentDb) {
 
     final List<ConfiguredAirbyteStream> initialSnapshotStreams = new ArrayList<>();
 
@@ -108,7 +109,7 @@ public class MongoDbCdcInitialSnapshotUtils {
     }
 
     // Emit estimated trace message for each stream that will perform an initial snapshot sync
-    initialSnapshotStreams.forEach(s -> estimateInitialSnapshotSyncSize(mongoClient, s));
+    initialSnapshotStreams.forEach(s -> estimateInitialSnapshotSyncSize(mongoClient, s, isDocumentDb));
 
     return initialSnapshotStreams;
   }
@@ -123,9 +124,9 @@ public class MongoDbCdcInitialSnapshotUtils {
         .toList();
   }
 
-  private static void estimateInitialSnapshotSyncSize(final MongoClient mongoClient, final ConfiguredAirbyteStream stream) {
+  private static void estimateInitialSnapshotSyncSize(final MongoClient mongoClient, final ConfiguredAirbyteStream stream, final boolean isDocumentDb) {
     final Optional<MongoUtil.CollectionStatistics> collectionStatistics =
-        MongoUtil.getCollectionStatistics(mongoClient.getDatabase(stream.getStream().getNamespace()), stream);
+        MongoUtil.getCollectionStatistics(mongoClient.getDatabase(stream.getStream().getNamespace()), stream, isDocumentDb);
     collectionStatistics.ifPresent(c -> {
       AirbyteTraceMessageUtility.emitEstimateTrace(PLATFORM_DATA_INCREASE_FACTOR * c.size().longValue(),
           AirbyteEstimateTraceMessage.Type.STREAM, c.count().longValue(), stream.getStream().getName(), stream.getStream().getNamespace());
